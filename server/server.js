@@ -4,8 +4,9 @@ const { ObjectID } = require('mongodb');
 const _ = require('lodash');
 
 const { mongoose } = require('./db/mongoose');
-const {Todo} = require('./models/todo');
-const {User} = require('./models/user');
+const { Todo } = require('./models/todo');
+const { User } = require('./models/user');
+const { authenticate } = require('./middleware/authenticate');
 
 const port = process.env.PORT || 3000;
 const app = express();
@@ -30,7 +31,7 @@ app.get('/todos', (req, res) => {
   }, e => {
     res.status(400).send(e);
   })
-})
+});
 
 app.get('/todos/:id', (req,res) => {
   const id = req.params.id
@@ -109,6 +110,30 @@ app.post('/users', (req, res) => {
     res.status(400).send(e);
   })
 });
+
+app.get('/users/me', authenticate, (req, res) => {
+  res.send(req.user);
+});
+
+app.post('/users/login', (req, res) => {
+  const body = _.pick(req.body, ['email', 'password']);
+  
+  User.findByCredentials(body.email, body.password).then(user => {
+    return user.generateAuthToken().then(token => {
+      res.header('x-auth', token).send(user);
+    })
+  }). catch(e => {
+    res.status(400).send();
+  }) ;
+});
+
+app.delete('/users/me/token', authenticate, (req, res) => {
+  req.user.removeToken(req.token).then(() => {
+    res.status(200).send();
+  }).catch(e => {
+    res.status(400).send();
+  })
+})
 
 app.listen(port, () => {
   console.log(`Server running on port ${port}`);
